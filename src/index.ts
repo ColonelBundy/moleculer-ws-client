@@ -27,7 +27,8 @@ export enum PacketType {
 
 export enum InternalNames {
   RESPONSE = 'response',
-  CUSTOM = 'custom'
+  CUSTOM = 'custom',
+  EVENT = 'EVENT'
 }
 
 enum InternalActions {
@@ -36,7 +37,7 @@ enum InternalActions {
 }
 
 export interface Packet {
-  name?: string | InternalNames,
+  name: string | InternalNames,
   action: string,
   data: any,
   type: PacketType
@@ -101,7 +102,7 @@ export class Client {
    * @memberof Client
    */
   public authenticate(data: object): Bluebird<Object> {
-    this.send({ action: InternalActions.AUTH, data, type: PacketType.INTERNAL, ack: this.ack });
+    this.send({ name: InternalNames.EVENT, action: InternalActions.AUTH, data, type: PacketType.INTERNAL, ack: this.ack });
     return this.ExpectResponse();
   }
 
@@ -113,7 +114,7 @@ export class Client {
    * @memberof Client
    */
   public emitEvent(event: string, data: object) : void {
-    this.send({ action: event, data, type: PacketType.CUSTOM, ack: this.ack });
+    this.send({ name: InternalNames.EVENT, action: event, data, type: PacketType.CUSTOM, ack: this.ack });
   }
 
   /**
@@ -125,7 +126,7 @@ export class Client {
    * @memberof Client
    */
   public callEvent(event: string, data: object) : Bluebird<object> {
-    this.send({ action: event, data, type: PacketType.CUSTOM, ack: this.ack });
+    this.send({ name: InternalNames.EVENT, action: event, data, type: PacketType.CUSTOM, ack: this.ack });
     return this.ExpectResponse()
   }
 
