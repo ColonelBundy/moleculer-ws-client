@@ -36,7 +36,7 @@ enum InternalActions {
 }
 
 export interface Packet {
-  name: string | InternalNames,
+  name?: string | InternalNames,
   action: string,
   data: any,
   type: PacketType
@@ -101,7 +101,7 @@ export class Client {
    * @memberof Client
    */
   public authenticate(data: object): Bluebird<Object> {
-    this.socket.send(<Packet>{ name: '', action: InternalActions.AUTH, data, type: PacketType.INTERNAL, ack: this.ack });
+    this.send({ action: InternalActions.AUTH, data, type: PacketType.INTERNAL, ack: this.ack });
     return this.ExpectResponse();
   }
 
@@ -113,7 +113,7 @@ export class Client {
    * @memberof Client
    */
   public emitEvent(event: string, data: object) : void {
-    this.socket.send(<Packet>{ name: '', action: event, data, type: PacketType.CUSTOM, ack: this.ack });
+    this.send({ action: event, data, type: PacketType.CUSTOM, ack: this.ack });
   }
 
   /**
@@ -125,7 +125,7 @@ export class Client {
    * @memberof Client
    */
   public callEvent(event: string, data: object) : Bluebird<object> {
-    this.socket.send(<Packet>{ name: '', action: event, data, type: PacketType.CUSTOM, ack: this.ack });
+    this.send({ action: event, data, type: PacketType.CUSTOM, ack: this.ack });
     return this.ExpectResponse()
   }
 
@@ -138,7 +138,7 @@ export class Client {
    * @memberof Client
    */
   public emit(name: string, action: string, data: object) : void {
-    this.socket.send(<Packet>{ name, action, data, type: PacketType.SYSTEM, ack: this.ack });
+    this.send({ name, action, data, type: PacketType.SYSTEM, ack: this.ack });
   }
 
   /**
@@ -151,7 +151,7 @@ export class Client {
    * @memberof Client
    */
   public call(name: string, action: string, data: object) : Bluebird<object> {
-    this.socket.send(<Packet>{ name, action, data, type: PacketType.SYSTEM, ack: this.ack });
+    this.send(<Packet>{ name, action, data, type: PacketType.SYSTEM, ack: this.ack });
     return this.ExpectResponse();
   }
 
@@ -163,7 +163,7 @@ export class Client {
    * @returns 
    * @memberof Client
    */
-  private Send(packet: Packet) : void {
+  private send(packet: Packet) : void {
     if (this.socket.readyState !== this.socket.OPEN)
       return;
 
@@ -221,7 +221,7 @@ export class Client {
   }
 
   private connectionHandler(e: Event) : void {
-    this.Emitter.emit('connection');
+    this.Emitter.emit('connection', this);
   }
 
   private messageHandler(e: MessageEvent) : void {
