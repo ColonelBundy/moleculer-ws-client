@@ -20,29 +20,33 @@ if (_.isNil(window)) {
 }
 
 export enum PacketType {
-  INTERNAL,
-  CUSTOM,
-  SYSTEM
-}
-
-export enum InternalNames {
-  RESPONSE = 'response',
-  CUSTOM = 'custom',
-  EVENT = 'EVENT'
-}
-
-enum InternalActions {
-  AUTH = 'auth',
-  ACK = 'ack'
+  EVENT,
+  ACTION,
+  RESPONSE
 }
 
 export interface Packet {
-  name: string | InternalNames,
-  action: string,
-  data: any,
-  type: PacketType
-  ack?: number
+  ack?: number // Should be set by client if he wants a response
+  type: PacketType,
+  payload: ActionPacket | EventPacket | ResponsePacket
 }
+
+export interface ActionPacket {
+  name: string,
+  action: string,
+  data: any
+}
+
+export interface EventPacket {
+  event: string,
+  data: any
+}
+
+export interface ResponsePacket {
+  id: number,
+  data: any
+}
+
 
 export type encryption = (packet: Packet) => Bluebird<Buffer | string | any>;
 export type decryption = (message: Buffer | string | any) => Bluebird<Packet>;
@@ -102,7 +106,11 @@ export class Client {
    * @memberof Client
    */
   public authenticate(data: object): Bluebird<Object> {
-    this.send({ name: InternalNames.EVENT, action: InternalActions.AUTH, data, type: PacketType.INTERNAL, ack: this.ack });
+    this.send(<Packet>{ 
+      type: PacketType.ACTION,
+      ack: this.ack,
+      payload: <ActionPacket>{ name: 'internal', action: 'auth', data }
+    })
     return this.ExpectResponse();
   }
 
@@ -114,7 +122,10 @@ export class Client {
    * @memberof Client
    */
   public emitEvent(event: string, data: object) : void {
-    this.send({ name: InternalNames.EVENT, action: event, data, type: PacketType.CUSTOM, ack: this.ack });
+    this.send(<Packet>{ 
+      type: PacketType.EVENT,
+      payload: <EventPacket>{ event, data }
+    })
   }
 
   /**
@@ -126,7 +137,11 @@ export class Client {
    * @memberof Client
    */
   public callEvent(event: string, data: object) : Bluebird<object> {
-    this.send({ name: InternalNames.EVENT, action: event, data, type: PacketType.CUSTOM, ack: this.ack });
+    this.send(<Packet>{ 
+      type: PacketType.EVENT,
+      ack: this.ack,
+      payload: <EventPacket>{ event, data }
+    })
     return this.ExpectResponse()
   }
 
@@ -139,7 +154,10 @@ export class Client {
    * @memberof Client
    */
   public emit(name: string, action: string, data: object) : void {
-    this.send({ name, action, data, type: PacketType.SYSTEM, ack: this.ack });
+    this.send(<Packet>{ 
+      type: PacketType.ACTION,
+      payload: <ActionPacket>{ name, action, data }
+    })
   }
 
   /**
@@ -152,7 +170,11 @@ export class Client {
    * @memberof Client
    */
   public call(name: string, action: string, data: object) : Bluebird<object> {
-    this.send(<Packet>{ name, action, data, type: PacketType.SYSTEM, ack: this.ack });
+    this.send(<Packet>{ 
+      type: PacketType.ACTION,
+      ack: this.ack,
+      payload: <ActionPacket>{ name, action, data }
+    })
     return this.ExpectResponse();
   }
 
@@ -190,7 +212,7 @@ export class Client {
         this.Emitter.removeListener(event, () => reject());
       }, this.options.responseTimeout | 30000); // 30 seconds default
 
-      this.Emitter.once(event, (packet: Packet) => {
+      this.Emitter.once(event, (packet: ResponsePacket) => {
         clearTimeout(timeout);
 
         if (packet.data.error) { // Catch any errors and reject.
@@ -210,11 +232,8 @@ export class Client {
    * @returns 
    * @memberof Client
    */
-  private emitAck(packet: Packet) : void {
-    if (!packet.ack)
-      return;
-
-    this.Emitter.emit(`_ack_${packet.ack}`, packet);
+  private emitAck(id: number, data: any) : void {
+    this.Emitter.emit(`_ack_${id}`, data);
   } 
 
   private disconnectHandler(e: CloseEvent) : void {
@@ -226,29 +245,18 @@ export class Client {
   }
 
   private messageHandler(e: MessageEvent) : void {
-    this.DecodePacket(e.data).then((d: Packet) => {
-      switch(d.type) {
-        // Server wishes to call a defined function
-        case PacketType.SYSTEM: 
-          
+    this.DecodePacket(e.data).then((packet) => {
+
+      switch(packet.type) {
+        case PacketType.RESPONSE:
+          const response = <ResponsePacket>packet.payload;
+          this.emitAck(response.id, response.data)
         break;
 
-        // Sent directly
-        case PacketType.CUSTOM:
-          this.Emitter.emit(d.action, d.data);
-        break;
-
-        // Responses and reserved stuff for future implementations.
-        case PacketType.INTERNAL:
-          switch(d.name) {
-            case InternalNames.RESPONSE:
-              this.emitAck(d);
-            break;
-
-            case InternalNames.CUSTOM:
-              this.Emitter.emit(d.action, d.data);
-            break;
-          }
+        default:
+          case PacketType.EVENT:
+          const event = <EventPacket>packet.payload;
+          this.Emitter.emit(event.event, event.data);
         break;
       }
     }).catch(e => this.logger.error(e));
