@@ -6,6 +6,7 @@
   "scripts": {
     "clean": "rimraf dist/*",
     "compile": "yarn clean && tsc",
+    "testing": "yarn clean && tsc && node dist/testing/index.js",
     "dev": "nodemon -e ts --exec \"yarn compile\""
   },
   "engines": {
@@ -14,18 +15,13 @@
   "author": "Colonelbundy <colonelbundy@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "@types/lodash": "^4.14.104",
-    "@types/ws": "^4.0.1",
+    "blob-to-buffer": "^1.2.7",
     "buffer": "^5.1.0",
     "eventemitter2": "^5.0.1",
-    "js-logger": "^1.4.1",
-    "lodash": "^4.17.5",
-    "log4js": "^2.5.3",
     "ws": "^5.0.0"
   },
   "devDependencies": {
-    "@types/bluebird": "^3.5.20",
-    "@types/log4js": "^2.3.5",
+    "@types/ws": "^4.0.1",
     "nodemon": "^1.11.0",
     "rimraf": "^2.6.1",
     "typescript": "^2.7.1"
