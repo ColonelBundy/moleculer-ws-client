@@ -16,8 +16,6 @@
   "author": "Colonelbundy <colonelbundy@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "blob-to-buffer": "^1.2.7",
-    "buffer": "^5.1.0",
     "eventemitter2": "^5.0.1",
     "ws": "^5.0.0"
   },
