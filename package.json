@@ -2,12 +2,13 @@
   "name": "moleculer-ws-client",
   "version": "1.0.0",
   "description": "Websocket client for moleculer",
-  "main": "dist/src/index.js",
+  "main": "dist/index.js",
   "scripts": {
     "clean": "rimraf dist/*",
     "compile": "yarn clean && tsc",
     "testing": "yarn clean && tsc && node dist/testing/index.js",
-    "dev": "nodemon -e ts --exec \"yarn compile\""
+    "dev": "nodemon -e ts --exec \"yarn compile\"",
+    "build": "webpack --progress --config webpack.config.js"
   },
   "engines": {
     "node": ">=8.9.1"
@@ -24,6 +25,10 @@
     "@types/ws": "^4.0.1",
     "nodemon": "^1.11.0",
     "rimraf": "^2.6.1",
-    "typescript": "^2.7.1"
+    "ts-loader": "4.1.0",
+    "typescript": "^2.7.1",
+    "webpack": "4.2.0",
+    "webpack-cli": "2.0.13",
+    "webpack-visualizer-plugin": "0.1.11"
   }
 }
