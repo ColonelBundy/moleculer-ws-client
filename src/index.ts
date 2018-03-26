@@ -3,8 +3,6 @@
  * Copyright (c) 2018 ColonelBundy (https://github.com/colonelbundy/moleculer-ws-client)
  * MIT Licensed
  */
-import toBuffer = require('blob-to-buffer');
-import { Buffer } from 'buffer';
 import { EventEmitter2 } from 'eventemitter2';
 import * as Errors from './errors';
 
@@ -21,13 +19,18 @@ if (typeof window === 'undefined') {
 export enum PacketType {
   EVENT,
   ACTION,
-  RESPONSE
+  RESPONSE,
+  PROPS
 }
 
 export interface Packet {
   ack?: number; // Should be set by client if he wants a response
   type: PacketType;
-  payload: ActionPacket | EventPacket | ResponsePacket;
+  payload: ActionPacket | EventPacket | ResponsePacket | propsPacket;
+}
+
+export interface propsPacket {
+  props: object;
 }
 
 export interface ActionPacket {
@@ -46,8 +49,12 @@ export interface ResponsePacket {
   data: any;
 }
 
-export type encryption = (packet: Packet) => Promise<Buffer | string | any>;
-export type decryption = (message: Buffer | string | any) => Promise<Packet>;
+export type encryption = (
+  packet: Packet
+) => Promise<ArrayBuffer | string | any>;
+export type decryption = (
+  message: ArrayBuffer | string | any
+) => Promise<Packet>;
 
 export interface Options {
   responseTimeout?: number;
@@ -134,6 +141,7 @@ export class Client {
     this.socket.onmessage = this.messageHandler.bind(this);
     this.socket.onerror = this.errorHandler.bind(this);
     this.socket.onclose = this.disconnectHandler.bind(this);
+    this.socket.binaryType = 'arraybuffer';
   }
 
   /**
@@ -290,6 +298,10 @@ export class Client {
     this.DecodePacket(e.data)
       .then(packet => {
         switch (packet.type) {
+          case PacketType.PROPS:
+            this.props = packet.payload;
+            break;
+
           case PacketType.RESPONSE:
             const response = <ResponsePacket>packet.payload;
             this.emitAck(response.id, response.data);
@@ -309,7 +321,7 @@ export class Client {
     this.Emitter.emit('error', e);
   }
 
-  private EncodePacket(packet: Packet): Promise<Buffer | string> {
+  private EncodePacket(packet: Packet): Promise<ArrayBuffer | string> {
     return new Promise((resolve, reject) => {
       try {
         if (isFunction(this.options.encryption)) {
@@ -326,7 +338,13 @@ export class Client {
 
             default:
             case 'Binary':
-              resolve(Buffer.from(JSON.stringify(packet)));
+              resolve(
+                new Uint8Array(
+                  JSON.stringify(packet)
+                    .split('')
+                    .map(c => c.charCodeAt(0))
+                ).buffer
+              );
               break;
           }
         }
@@ -336,7 +354,7 @@ export class Client {
     });
   }
 
-  private DecodePacket(message: Buffer | string | any): Promise<Packet> {
+  private DecodePacket(message: ArrayBuffer | string | any): Promise<Packet> {
     return new Promise((resolve, reject) => {
       try {
         if (
@@ -354,21 +372,14 @@ export class Client {
               break;
 
             default:
-            case 'Binary':
-              if (Browser && message instanceof Blob) {
-                return toBuffer(message, (err, bufferedMessage) => {
-                  if (err) throw err;
-
-                  resolve(
-                    JSON.parse(
-                      Buffer.from(bufferedMessage, 'binary').toString('utf8')
-                    )
-                  );
-                });
-              }
-
+            case 'Binary': // Convert arraybuffer
               resolve(
-                JSON.parse(Buffer.from(message, 'binary').toString('utf8'))
+                JSON.parse(
+                  new Uint8Array(message).reduce(
+                    (p, c) => p + String.fromCharCode(c),
+                    ''
+                  )
+                )
               );
               break;
           }
