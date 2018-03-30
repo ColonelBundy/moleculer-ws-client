@@ -8,7 +8,8 @@
     "compile": "yarn clean && tsc",
     "testing": "yarn clean && tsc && node dist/testing/index.js",
     "dev": "nodemon -e ts --exec \"yarn compile\"",
-    "build": "webpack --progress --config webpack.config.js"
+    "build": "webpack --progress --config webpack.config.js",
+    "postinstall": "tsc"
   },
   "engines": {
     "node": ">=8.9.1"

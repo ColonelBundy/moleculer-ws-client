@@ -38,7 +38,7 @@ module.exports = {
   },
 
   plugins: [
-    new webpack.IgnorePlugin(/^ws$/)
+    new webpack.IgnorePlugin(/^ws$/) // If you are using this for web.
     //new Visualizer()
   ]
 };
