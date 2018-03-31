@@ -57,20 +57,22 @@ export type decryption = (
 ) => Promise<Packet>;
 
 export interface Options {
+  reconnect?: {
+    interval: 5000;
+    retries: 0;
+  };
   responseTimeout?: number;
   eventEmitter?: {
     wildcard: boolean;
     maxListeners: number;
   };
-  ws?: {
-    perMessageDeflate: boolean;
-  };
+  ws?: any; // Websocket options goes here (@TODO interface for it)
   secure: boolean;
   encryption?: encryption | 'Binary' | 'JSON';
   decryption?: decryption;
 }
 
-// Helper instead of lodash
+// Helper instead of lodash, Thanks icebob
 function isFunction(x) {
   return Object.prototype.toString.call(x) == '[object Function]';
 }
@@ -90,6 +92,7 @@ export class Client {
   public removeListener: EventEmitter2['removeListener'];
   public removeAllListeners: EventEmitter2['removeAllListeners'];
   public setMaxListeners: EventEmitter2['setMaxListeners'];
+  private reconnect_tries: number = 0;
   private ack: number = 0;
   private host: string;
   private options: Options = {
@@ -123,6 +126,18 @@ export class Client {
     );
     this.setMaxListeners = this.Emitter.setMaxListeners.bind(this.Emitter);
 
+    if (this.host.match('wss://')) {
+      this.options.secure = true;
+    } else if (this.host.match('ws://')) {
+      this.options.secure = false;
+    } else {
+      if (this.options.secure) {
+        this.host = `wss://${this.host}`;
+      } else {
+        this.host = `ws://${this.host}`;
+      }
+    }
+
     this.Setup();
   }
 
@@ -132,16 +147,25 @@ export class Client {
    * @private
    * @memberof Client
    */
-  private Setup() {
-    this.socket = new ws(
-      `${this.options.secure ? 'wss' : 'ws'}://${this.host}`,
-      this.options.ws
-    );
+  private Setup(): void {
+    this.socket = new ws(this.host, this.options.ws);
     this.socket.onopen = this.connectionHandler.bind(this);
     this.socket.onmessage = this.messageHandler.bind(this);
     this.socket.onerror = this.errorHandler.bind(this);
     this.socket.onclose = this.disconnectHandler.bind(this);
     this.socket.binaryType = 'arraybuffer';
+  }
+
+  /**
+   * Manual disconnect
+   *
+   * @returns {void}
+   * @memberof Client
+   */
+  public disconnect(reason?: string): void {
+    if (this.socket.readyState !== this.socket.OPEN) return;
+
+    this.socket.close(2001, reason); // Indicate normal closure (custom code)
   }
 
   /**
@@ -286,29 +310,71 @@ export class Client {
     this.Emitter.emit(`_ack_${id}`, data);
   }
 
+  /**
+   * Disconnect handler, also handles reconnects
+   *
+   * @private
+   * @param {CloseEvent} e
+   * @memberof Client
+   */
   private disconnectHandler(e: CloseEvent): void {
-    this.Emitter.emit('disconnected', e.reason);
+    if (e.code === 2001) {
+      this.Emitter.emit('disconnected', e.reason);
+      return;
+    }
+
+    // Only reconnect only if it's unexpected
+    if (
+      this.options.reconnect &&
+      this.options.reconnect.retries > 0 &&
+      this.options.reconnect.retries >= this.reconnect_tries
+    ) {
+      setTimeout(() => {
+        this.reconnect_tries++;
+        this.Setup();
+        this.Emitter.emit('reconnect', this.reconnect_tries);
+      }, Math.random() * (this.options.reconnect.interval - this.options.reconnect.interval / 2) + this.options.reconnect.interval / 2); // Random interval between (interval/2) and your interval
+    }
+
+    if (this.reconnect_tries === 0) {
+      this.Emitter.emit('disconnected', e.reason);
+    }
   }
 
+  /**
+   * Connection handler
+   *
+   * @private
+   * @param {Event} e
+   * @memberof Client
+   */
   private connectionHandler(e: Event): void {
+    this.reconnect_tries = 0;
     this.Emitter.emit('connected', this);
   }
 
+  /**
+   * Handle incoming messages
+   *
+   * @private
+   * @param {MessageEvent} e
+   * @memberof Client
+   */
   private messageHandler(e: MessageEvent): void {
     this.DecodePacket(e.data)
       .then(packet => {
         switch (packet.type) {
-          case PacketType.PROPS:
+          case PacketType.PROPS: // Updating props
             this.props = packet.payload;
             break;
 
-          case PacketType.RESPONSE:
+          case PacketType.RESPONSE: // Response from server
             const response = <ResponsePacket>packet.payload;
             this.emitAck(response.id, response.data);
             break;
 
           default:
-          case PacketType.EVENT:
+          case PacketType.EVENT: // Event
             const event = <EventPacket>packet.payload;
             this.Emitter.emit(event.event, event.data);
             break;
@@ -317,10 +383,25 @@ export class Client {
       .catch(e => this.logger.error(e));
   }
 
+  /**
+   * ErrorHandler
+   *
+   * @private
+   * @param {Event} e
+   * @memberof Client
+   */
   private errorHandler(e: Event): void {
     this.Emitter.emit('error', e);
   }
 
+  /**
+   * Encode packet
+   *
+   * @private
+   * @param {Packet} packet
+   * @returns {(Promise<ArrayBuffer | string>)}
+   * @memberof Client
+   */
   private EncodePacket(packet: Packet): Promise<ArrayBuffer | string> {
     return new Promise((resolve, reject) => {
       try {
@@ -329,7 +410,7 @@ export class Client {
 
           encrypt(packet)
             .then(resolve)
-            .catch(err => new Error(err));
+            .catch(err => new Errors.EncodeError(err));
         } else {
           switch (this.options.encryption) {
             case 'JSON':
@@ -354,6 +435,14 @@ export class Client {
     });
   }
 
+  /**
+   * Decode packet
+   *
+   * @private
+   * @param {(ArrayBuffer | string | any)} message
+   * @returns {Promise<Packet>}
+   * @memberof Client
+   */
   private DecodePacket(message: ArrayBuffer | string | any): Promise<Packet> {
     return new Promise((resolve, reject) => {
       try {
@@ -364,7 +453,7 @@ export class Client {
           this.options
             .decryption(message)
             .then(resolve)
-            .catch(err => new Error(err));
+            .catch(err => new Errors.DecodeError(err));
         } else {
           switch (this.options.encryption) {
             case 'JSON':

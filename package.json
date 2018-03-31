@@ -8,8 +8,7 @@
     "compile": "yarn clean && tsc",
     "testing": "yarn clean && tsc && node dist/testing/index.js",
     "dev": "nodemon -e ts --exec \"yarn compile\"",
-    "build": "webpack --progress --config webpack.config.js",
-    "postinstall": "tsc"
+    "build": "webpack --progress --config webpack.config.js"
   },
   "engines": {
     "node": ">=8.9.1"
@@ -18,10 +17,10 @@
   "license": "MIT",
   "dependencies": {
     "eventemitter2": "^5.0.1",
-    "ws": "^5.0.0",
-    "typescript": "^2.7.1"
+    "ws": "^5.0.0"
   },
   "devDependencies": {
+    "typescript": "^2.7.1",
     "@types/ws": "^4.0.1",
     "nodemon": "^1.11.0",
     "rimraf": "^2.6.1",
