@@ -185,6 +185,22 @@ export class Client {
   }
 
   /**
+   * Deauthenticate
+   *
+   * @param {object} data
+   * @returns {Promise<Object>}
+   * @memberof Client
+   */
+  public deauthenticate(data: object): Promise<Object> {
+    this.send(<Packet>{
+      type: PacketType.ACTION,
+      ack: this.ack,
+      payload: <ActionPacket>{ name: 'internal', action: 'deauth', data }
+    });
+    return this.ExpectResponse();
+  }
+
+  /**
    * Emit event
    *
    * @param {string} event
