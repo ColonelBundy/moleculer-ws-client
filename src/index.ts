@@ -20,17 +20,18 @@ export enum PacketType {
   EVENT,
   ACTION,
   RESPONSE,
-  PROPS
+  SYNC
 }
 
 export interface Packet {
   ack?: number; // Should be set by client if he wants a response
   type: PacketType;
-  payload: ActionPacket | EventPacket | ResponsePacket | propsPacket;
+  payload: ActionPacket | EventPacket | ResponsePacket | syncPacket;
 }
 
-export interface propsPacket {
+export interface syncPacket {
   props: object;
+  auhtorized: boolean;
 }
 
 export interface ActionPacket {
@@ -84,6 +85,7 @@ export class Client {
 
   public id: string;
   public props: object;
+  public authorized: boolean = false;
   public on: EventEmitter2['on'];
   public once: EventEmitter2['once'];
   public onAny: EventEmitter2['onAny'];
@@ -380,8 +382,10 @@ export class Client {
     this.DecodePacket(e.data)
       .then(packet => {
         switch (packet.type) {
-          case PacketType.PROPS: // Updating props
-            this.props = packet.payload;
+          case PacketType.SYNC: // sync properties
+            const sync = <syncPacket>packet.payload;
+            this.props = sync.props;
+            this.authorized = sync.auhtorized;
             break;
 
           case PacketType.RESPONSE: // Response from server
