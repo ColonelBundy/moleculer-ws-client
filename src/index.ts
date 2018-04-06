@@ -5,6 +5,7 @@
  */
 import { EventEmitter2 } from 'eventemitter2';
 import * as Errors from './errors';
+export { Errors }
 
 let ws,
   Browser = false;
