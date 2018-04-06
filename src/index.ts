@@ -5,7 +5,7 @@
  */
 import { EventEmitter2 } from 'eventemitter2';
 import * as Errors from './errors';
-export { Errors }
+export { Errors };
 
 let ws,
   Browser = false;
@@ -32,7 +32,7 @@ export interface Packet {
 
 export interface syncPacket {
   props: object;
-  auhtorized: boolean;
+  authorized: boolean;
 }
 
 export interface ActionPacket {
@@ -337,6 +337,9 @@ export class Client {
    * @memberof Client
    */
   private disconnectHandler(e: CloseEvent): void {
+    this.props = {}; // reset
+    this.authorized = false;
+
     if (e.code === 2001) {
       this.Emitter.emit('disconnected', e.reason);
       return;
@@ -386,7 +389,7 @@ export class Client {
           case PacketType.SYNC: // sync properties
             const sync = <syncPacket>packet.payload;
             this.props = sync.props;
-            this.authorized = sync.auhtorized;
+            this.authorized = sync.authorized;
             break;
 
           case PacketType.RESPONSE: // Response from server
