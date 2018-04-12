@@ -51,10 +51,10 @@ export interface ResponsePacket {
   data: any;
 }
 
-export type encryption = (
+export type serialize = (
   packet: Packet
 ) => Promise<ArrayBuffer | string | any>;
-export type decryption = (
+export type deserialize = (
   message: ArrayBuffer | string | any
 ) => Promise<Packet>;
 
@@ -70,8 +70,8 @@ export interface Options {
   };
   ws?: any; // Websocket options goes here (@TODO interface for it)
   secure: boolean;
-  encryption?: encryption | 'Binary' | 'JSON';
-  decryption?: decryption;
+  serialize?: serialize | 'Binary' | 'JSON';
+  deserialize?: deserialize;
 }
 
 // Helper instead of lodash, Thanks icebob
@@ -106,7 +106,7 @@ export class Client {
       maxListeners: 50
     },
     secure: false,
-    encryption: 'Binary'
+    serialize: 'Binary'
   };
 
   constructor(host: string, options?: Options) {
@@ -429,14 +429,14 @@ export class Client {
   private EncodePacket(packet: Packet): Promise<ArrayBuffer | string> {
     return new Promise((resolve, reject) => {
       try {
-        if (isFunction(this.options.encryption)) {
-          const encrypt = <encryption>this.options.encryption; // typescript fix....
+        if (isFunction(this.options.serialize)) {
+          const encrypt = <serialize>this.options.serialize; // typescript fix....
 
           encrypt(packet)
             .then(resolve)
             .catch(err => new Errors.EncodeError(err));
         } else {
-          switch (this.options.encryption) {
+          switch (this.options.serialize) {
             case 'JSON':
               resolve(JSON.stringify(packet));
               break;
@@ -471,15 +471,15 @@ export class Client {
     return new Promise((resolve, reject) => {
       try {
         if (
-          isFunction(this.options.encryption) &&
-          isFunction(this.options.decryption)
+          isFunction(this.options.serialize) &&
+          isFunction(this.options.deserialize)
         ) {
           this.options
-            .decryption(message)
+            .deserialize(message)
             .then(resolve)
             .catch(err => new Errors.DecodeError(err));
         } else {
-          switch (this.options.encryption) {
+          switch (this.options.serialize) {
             case 'JSON':
               resolve(JSON.parse(message));
               break;
